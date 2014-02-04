@@ -16,7 +16,7 @@ class Fetcher(threading.Thread):
         self.path = path
         self.options = options
 
-    def run(self, verbose=False):
+    def run(self):
         while 1:
             try:
                 url = self.queue.get_nowait()
@@ -25,7 +25,7 @@ class Fetcher(threading.Thread):
 
             filename = os.path.basename(url)
 
-            if(verbose):
+            if(self.options['verbose']):
                 print "fetching " + filename
 
             f = "%s/%s" % (self.path, filename)
@@ -34,7 +34,7 @@ class Fetcher(threading.Thread):
             if (zipfile.is_zipfile(f)):
                 zip = zipfile.ZipFile(f, "r")
                 zip.extractall(self.path)
-                if(verbose):
+                if(self.options['verbose']):
                     print "extracting " + filename
 
             os.remove(f)
