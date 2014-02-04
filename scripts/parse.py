@@ -1,11 +1,8 @@
 import os
 import subprocess
 import ConfigParser
-import threading
-import Queue
 import sqlalchemy
 import csv
-import time
 import glob
 import re
 import getopt
@@ -19,7 +16,6 @@ def connect(config):
 
         HOST = None if not config.has_option('database', 'host') else config.get('database', 'host')
         USER = None if not config.has_option('database', 'user') else config.get('database', 'user')
-        SCHEMA = None if not config.has_option('database', 'schema') else config.get('database', 'schema')
         PASSWORD = None if not config.has_option('database', 'password') else config.get('database', 'password')
     except ConfigParser.NoOptionError:
         print 'Need to define engine, user, password, host, and database parameters'
@@ -32,19 +28,19 @@ def connect(config):
             dbString = ENGINE + '://%s:%s@%s/%s' % (USER, PASSWORD, HOST, DATABASE)
         else:
             dbString = ENGINE + '://%s/%s' % (HOST, DATABASE)
-        
+
     try:
         db = sqlalchemy.create_engine(dbString)
         conn = db.connect()
     except:
         return None
-    
+
     return conn
 
 
 def parse_rosters(file, conn, bound_param):
     print "processing %s" % file
-    
+
     try:
         year = re.search(r"\d{4}", os.path.basename(file)).group(0)
     except:
@@ -54,17 +50,17 @@ def parse_rosters(file, conn, bound_param):
     reader = csv.reader(open(file))
 
     for row in reader:
-        row.insert(0, year) # Insert year
+        row.insert(0, year)  # Insert year
 
         sql = 'SELECT * FROM rosters WHERE year = %s AND player_id = %s AND team_tx = %s'
         res = conn.execute(sql, [row[0], row[1], row[6]])
-        
+
         if res.rowcount == 1:
             continue
-        
+
         sql = "INSERT INTO rosters VALUES (%s)" % ", ".join([bound_param] * len(row))
         conn.execute(sql, row)
-    
+
     return True
 
 
@@ -75,7 +71,7 @@ def parse_teams(file, conn, bound_param):
     for row in reader:
         sql = 'SELECT * FROM teams WHERE team_id = %s'
         res = conn.execute(sql, [row[0]])
-        
+
         if res.rowcount == 1:
             continue
 
@@ -91,7 +87,7 @@ def parse_games(file, conn, bound_param):
     except:
         print 'cannot get year from game file %s' % file
         return None
- 
+
     if conn.engine.driver == 'psycopg2':
         conn.execute('DELETE FROM games WHERE game_id LIKE \'%%' + year + '%%\'')
         conn.execute('COPY games FROM %s WITH CSV HEADER', file)
@@ -101,7 +97,7 @@ def parse_games(file, conn, bound_param):
         for row in reader:
             sql = 'SELECT * FROM games WHERE game_id = %s'
             res = conn.execute(sql, [row[0]])
-            
+
             if res.rowcount == 1:
                 continue
 
@@ -128,7 +124,7 @@ def parse_events(file, conn, bound_param):
         for row in reader:
             sql = 'SELECT * FROM events WHERE game_id = %s AND event_id = %s'
             res = conn.execute(sql, [row[0], row[96]])
-            
+
             if res.rowcount == 1:
                 return True
 
@@ -139,30 +135,30 @@ def parse_events(file, conn, bound_param):
 def main():
     config = ConfigParser.ConfigParser()
     config.readfp(open('config.ini'))
-    
+
     conn = connect(config)
-    
+
     if conn is None:
         print 'Cannot connect to database'
         raise SystemExit
-    
-    useyear     = False # Use a single year or all years
-    verbose     = config.get('debug', 'verbose')
-    chadwick    = config.get('chadwick', 'directory')
-    path        = os.path.abspath(config.get('download', 'directory'))
-    csvpath     = '%s/csv' % path
-    files       = []
-    years       = []
-    opts, args  = getopt.getopt(sys.argv[1:], "y:")
+
+    useyear = False  # Use a single year or all years
+    verbose = config.get('debug', 'verbose')
+    chadwick = config.get('chadwick', 'directory')
+    path = os.path.abspath(config.get('download', 'directory'))
+    csvpath = '%s/csv' % path
+    files = []
+    years = []
+    opts, args = getopt.getopt(sys.argv[1:], "y:")
     bound_param = '?' if config.get('database', 'engine') == 'sqlite' else '%s'
-    modules     = ['teams', 'rosters', 'events', 'games'] # items to process
-    
+    modules = ['teams', 'rosters', 'events', 'games']  # items to process
+
     if not os.path.exists(chadwick):
         print 'chadwick does not exist in %s - exiting' % chadwick
         raise SystemExit
-    
-    os.chdir(path) # Chadwick seems to need to be in the directory
-    
+
+    os.chdir(path)  # Chadwick seems to need to be in the directory
+
     if not os.path.exists('csv'):
         os.makedirs('csv')
 
